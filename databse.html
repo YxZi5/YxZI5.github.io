@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<!-- 
+	TO_DO:
+	 - proces kompilacji
+	 - gdzies pod koniec cos o WinAPI w c++ i najwazniejszych funkcjach WinAPI
+	 - cos o plikach dll
+ -->
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>database</title>
+	<style type="text/css">
+		body {
+			background-color: #282923;
+			color: white;
+			font-family: Lucida Console;
+		}
+		a {
+			color: white;
+		}
+		img {
+			margin-right: auto;
+			margin-left: auto;
+			display: block;
+		}
+	</style>
+</head>
+<body>
+	<h1 style="text-align: center;">Reverse Engineering - course!</h1>
+	<hr>
+	<br>
+
+	<h2>Anatomy of system process:</h2>
+	<p>Proces jest to program / aplikacja komputrowa spompilowana pod dana architektóre i dany system operacyjny na któym może działać. Proces jest tym właśnie programem jednak z ta różnicą że działa on w tle zawiera swoją przeztrzeń adresową odraczy zakres adresów w pamięci wirtualnej w której może alokować swoje dane niezbędne do jego działania. Oraz alokować i wykonywać funkcje z bibiolek które czyta albo z pamięci operacyjnej lub dyskowej pod windowsem są to biblioteki dll na unixach biblioteki dzielone tzn shared library o rozszerzeniach .so oraz .o . Aplikacja może składać się z większej liczby procesów. Każdy nowo powstały proces otrzymuje również unikatowy numer <b>PID</b>. Każdemu procesowi przydzielane są równiez zasoby w postaci: wyżej wymienionej pamięci, dostęp do urządzeń wejścia-wyjścia, pliki. Proces w pamięci posiada równiez sekcje te same które można odczytać z pliku wykonywalnego zapisanego na dysku. W skład procesu wchodzi równiez <b>stos</b> oraz <b>heap</b> które są elementami do przechowywania danych / wartości potrzebnych do wykonywania kodu maszynowego.</p>
+	<img id="image" height="350px" src="images/proces.png" alt="process">
+	<br>
+
+	<hr>
+
+	<h2>STACK a HEAP</h2>
+
+	<p><b>STACK</b> W informatyce stos (z angielskiego "stack") jest liniową strukturą danych w której dane dokładane są na wierzchołek stosu oraz z wierzchołka są pobierane. Stos jest elementem pamięci procesu na którym przechowywane są wartości potrzebne procesowi do wykonywania operacji / instrukcji. Programista poprzez mikroptymalizacje kodu (nawet wysokopoziomowego) ma wpływ na to gdzie zostaną zaalokowane dane podczas wykonywania programu. Najczęściej dla większych zbiorów danych które trzeba trzymać w kodzie aplikacji przewidziany jest heap czyli bardziej ogólny element pamięci. Aktualna zawartosc stosu może być zapamiętywana lub czyszczona między wywołaniami funkcji.</p>
+	<p><b>HEAP</b> Obszar pamięci procesu przechowywane są tam dynamicznie tworzone stuktury danych. W przeciwieństwie do stosu nie jest uporządkowany ani czyszczony między wywołaniami funkcji. Obiekty na stercie mają znacznie dłuższy czas życia tzn: mogą istnieć w pamięci przez cały proces wykonywania programu.</p>
+
+	<hr>
+
+	<h2>Rejestry w asemblerze</h2>
+
+	<p>rejestry w asemblerze traktujemy jako zmienne z tą różnicą że mamy ich okresloną ilość - na architektórze x86-64 mamy ich 16 a na x86-32 8. Każdy z rejestrów może być używany dowolnie (mają ogólne przeznaczenie), jednak jak ich nazwy sugerują posidają swoje przeznaczenia.</p>
+
+	<p>Posiadamy następujące typy rejestrów:</p>
+
+	<b>Rejestry wskaźnikowe:</b>
+	<p>
+		RBP/EBP (base pointer) - w nim przechowuje się aktualny spód stosu dla funkcji. Pozwala to okreslić położenie zmiennych lokalnych
+		<br />
+		RSP/ESP wskaźnik stosu (stack pointer) - przechowuje adres wierzchołka stosu
+		<br />
+		RIP/EIP wskaźnik instrukcji (instruction pointer) - przechowuje adres następnej instrukcji do wykonania.
+	</p>
+
+	<b>Rejestry stanu procesora:</b>
+	<p>
+		FLAG (16-bitowe)<br>
+		EFLAG (32-bitowe)<br>
+		RFLAG (64-bitowe)<br>
+		Służą one przede wszystkim do badania wyniku ostatniej operacji (np: czy wynik operacji jest zerem itp.) <br />
+		Rejestry stanu procesora po wykonaniu operacji ustawiają odpowiednie wartości tzw: flagą (znaczniką) następnie za pomocą np instrukcji cmp wartość znacznika porównywana jest z zerem aby sprawdzic czy wynikiem operacji jest zero. <br />
+		<ol>
+			<ul>
+				<b>Najważniejsze flagi to:</b>
+			</ul>
+			<ul>CF (carry flag - flaga przeniesienia)</ul>
+			<ul>OF (overflow flag - flaga przepełnienia)</ul>
+			<ul>SF (sign flag - flaga znaku)</ul>
+			<ul>ZF (zero flag - flaga zera)</ul>
+			<ul>DF (direction flag - flaga kierunku)</ul>
+			<ul>PF (parity flag - flaga parzystości)</ul>
+			<ul>IF (interrupt flag - flaga przerwań)</ul>
+		</ol>
+	</p>
+
+	<b>Pozostałe rejestry:</b>
+	<p>
+		RAX/EAX (Accumulator) - używany do operacji arytmetycznych i logicznych, czasami może przechowywać wartości zwracane przez funkcje
+		<br>
+		RBX/EBX (Base) - Używany jako podstawa do wyznaczania adresu
+		<br>
+		RCX/ECX (couter) - używany do zliczania liczb przejść pętli (iterator liczby literowanej)
+		<br>
+		RDX/EDX (Data) - Używany jako rejestr pomocniczy przy operacjach mnożenia i dzielenia oraz przy zapisie i odczycie z/do port.
+	</p>
+
+	<p>(R** - x86-64 Architecture / E** - x86-32 Architecture)</p>
+
+	<hr>
+
+	<h2>Tryby adresowania</h2>
+
+	<p>
+		<b>bezpośredni</b> - podajemy 32 bitową stałą, która określa przesunięcie względem początku pamięci (czyli adresu 0)
+		<br>
+		<b>pośredni przez rejestr</b> - adres znajduje się w jednym z 32/64 bitowych rejestrów.
+		<br>
+		<ol>
+			<ul>mov al, [eax]</ul>
+			<ul>mov al, [ebx]</ul>
+		</ol>
+		<br>
+		<b>indeksowany</b> - efektywny adres wylicza się dodając adres zmiennej i wartość przechowywaną w jednym z rejestrów.
+		<br>
+		<ol>
+			<ul>mov zmienna[ebx], 5</ul>
+		</ol>
+		<br>
+		<b>relatywny</b> - względem aktualnej instrukcji
+		<br>
+		<ol>
+			<ul>adres = rip + przesuniecie</ul>
+			<ul>mov [rip + przesuniecie], 1</ul>
+		</ol>
+	</p>
+
+	<hr>
+
+	<h2>Konwencje wywołań</h2>
+
+	<p>konwencja wywołań określa w jaki sposób stos jest czyszczony z argumentów po wykonaniu funkcji lub w jaki sposób argumenty funkcji układane są na stosie.</p>
+	<b>Konwencja stdcall</b>
+	<p>Standardową konwencją wywołań jest konwencja "stdcall" której nie musimy określać podczas definiowania funkcji jednak możemy. Oznacza to że nawet jeżeli nie wybierzemy jawnie żadnej konwencji, funkcja automatycznie zostanie wywołana z konwencją <b>stdcall</b>. Argumenty przekazywane do funkcji są standardowo umieszczane na stosie. Cechą charakterystyczną jest to, że funkcja sama sprząta stos po jej wywołaniu. Stos czyszczony jest podczas zakończenia funkcji przez rozkaz retn "n" gdzie "n" oznacza ilość parametrów na stosie.</p>
+
+	<p>podczas reversowania programu można zauważyć że funkcje w konwencji <b>stdcall</b> zaczynają się od znaku podkreślenia, a na końcu dodawana jest małpa oraz ilosc przekazywanych do funkcji argumentów: </p>
+	<ol>
+		<ul>_funkcja@1</ul>
+	</ol>
+
+	<b>Konwencja cdecl</b>
+	<p>Konwencja cdecl jest drugą najczęściej spotykaną konwencją wywoływania funkcji. Charakteryzuje się tym, że stos musi zostać wyczyszczony przez program w miejscu po instrukcji wywołującej funkcje, a nie przez samą funkcję. Szczególnym zastosowaniem konwencji cdecl jest sytuacja, kiedy wywołujemy funkcję ze zmienną ilością parametrów. Przykładem takiej funkcji jest np. printf(). Ponieważ, możemy umieścić w niej dowolną ilość argumentów, funkcja nie może zajmować się czyszczeniem stosu – nigdy nie wie ile parametrów zostanie do niej przekazane.</p>
+	<p>Podczas reversowania programu można zauważyć że funkcje w konwencji cdecl zaczynają się od znaku podkreślenia:</p>
+	<ol>
+		<ul>_funkcja</ul>
+	</ol>
+
+	<b>Konwencja fastcall</b>
+	<p>Zasadą działania konwencji fastcall jest przekazywanie argumentów za pomocą rejestrów, od kompilatora zależy które rejestry zostaną użyte jednak wszystkie kompilatory działają na tej samej zasadzie tzn: dwa pierwsze argumenty przechowywane są w rejestrach: ECX oraz EDX a reszta na stosie jeżeli zachodzi taka potrzeba.</p>
+	<p>podczas reversowania programu którego funkcje używają konwencji fastcall zauważysz że funkcje poprzedzone są znakiem małpy na początku oraz za nazwą funkcji a na końcu widnieje ilość parametrów funkcji:</p>
+	<ol>
+		<ul>@funkcja@1</ul>
+	</ol>
+
+	<hr>
+
+	<h2>Budowa plików PE</h2>
+	<p>O strukturach opisujących format PE można poczytać w oficjalnej dokumentacji formatu czyli Microsoft Portable Executable and Common Object File Format Specification (patrz Inne linki poniżej). Programiści korzystający z języka C/C++ mogą skorzystać z deklaracji struktur PE które znajdują się w headerze winnt.h w Platform SDK (osoby korzystające z Dev-C++ bądź Visual Studio w wersji innej niż express powinny mieć ów pliczek w katalogu include/). Osoby korzystające z pythona powinny zainteresować się biblioteką pefile.</p>
+	<p>
+		IMAGE_DOS_HEADER - struktura opisująca część DOSową pliku PE, rozpoczynająca się od magica MZ <br>
+		IMAGE_NT_HEADERS - struktura główna pliku PE, rozpoczynająca się od magica PE\0\0<br>
+		IMAGE_FILE_HEADER - składowa IMAGE_NT_HEADERS, zawiera m.in. ilość sekcji<br>
+		IMAGE_OPTIONAL_HEADER - składowa IMAGE_NT_HEADERS, zawiera m.in. Entry Point (EP), Image Base, Subsystem czy Data Directory<br>
+		IMAGE_DATA_DIRECTORY - mała struktura opisująca inne struktury używane w pliku, takie jak IMAGE_IMPORT_DESCRIPTOR, etc<br>
+		IMAGE_IMPORT_DESCRIPTOR - struktura opisująca importowaną bibliotekę (pojedynczą)<br>
+		IMAGE_SECTION_HEADER - struktura opisująca pojedynczą sekcje<br />
+	</p>
+
+	<p>Sekcje plików binarnych:</p>
+	<p><b>.bss</b> - sekcja przechowująca elementy wspólne nie w całości np: tablice - sekcja .bss jest elementem statycznym, jest sekcją danych niezainicjalizowanych.</p>
+	<p><b>.text</b> - sekcja która przechowuje kod programu</p>
+	<p><b>.data</b> - zawiera dane programu które są wykorzystywane podczas jego działania dane do odczytu / zapisu, ciągi tekstu, wartości liczbowe ustanowione statycznie przez programistę.</p>
+	<p><b>.rdata</b> - sekcja nazywana również rodata lub "read data" przechowuje dane tylko do odczytu. Nie jesteśmy wstanie pisać danymi do tej sekcji, często podobnie jak .bss przechowuje większe zbiory danych</p>
+	<p><b>.idata</b> - "import data" przechowuje informacje o importach programu</p>
+	<p><b>.reloc</b> - tablica relokacji</p>
+
+	<p>LINKI: <a href="https://github.com/erocarrera/pefile">PEFILE</a>, <a href="https://learn.microsoft.com/en-us/windows/win32/debug/pe-format">PE_FORMAT_DOCUMENTATION</a></p>
+
+	<hr>
+	<h2>Pamięć, proces</h2>
+	<p>pamięc stronicowa - sposób podzielenia pamięci wirtualnej komputera na większe jednostki o rozmiarze od 4kB do 32kB. Dzięki takiemu rozwiązaniu zwiększa się efektywność menadżera pamięci systemu operacyjnego oraz możliwe jest przenoszenie nieużywanych danych z pamięci RAM na dysk twardy komputera.</p>
+	<p>Wirtualna pamięc procesu jest jedynym obszarem pamięci do której można powiedzieć programista ma dostęp poprzez alokacje stron pamięci. Maksymalna przestrzeń adresowa na 32-bitach wynosi 4GB. 1 strona pamięci na x86 to 4096bajtów. Dostęp jako taki do fizycznej pamięci RAM ma dostęp jedynie system operacyjny my jako użydkownik lub programista mamy dostęp poprzez mechanizm wirtualizacji pamięci.</p>
+	<p>Każda zaalokowana i zmapowana strona pamięci wskazuje na pewną stronę pamięci fizycznej RAM. Pomimo tego że przestrzeń adresowa jednego procesu wynosi 4GB proces może wykorzystać standardowo 2GB ponieważ 2GB alokuje kernel space czyli elementy związane ze sterownikami itp (rzeczami do których my raczej nie mamy dostępu).</p>
+	
+	<br />
+
+	<p>
+		VirtualAlloc - funkcja do rezerwowania oraz alokowania (wraz z mapowaniem) całych stron pamięci (parametr dwSize zawsze jest zaokrąglany w górę do wielkości strony, czyli np. mimo iż podajemy 1 bajt, to i tak zaalokowana zostanie cała strona); patrz również VirtualFree; przydatna również przy używaniu AWE (patrz niżej) <br />
+HeapAlloc - funkcja do alokowania pamięci ze sterty (z heap'u); jest to funkcja WinAPI, więc w przeciwieństwie do malloc (który jest C-specyfic) można z niej korzystać w dowolnym języku który ma bindingi do WinAPI; patrz również HeapFree, GetProcessHeap oraz HeapCreate<br />
+LocalAlloc - kolejna funkcja alokująca pamięć ze starty; obecnie jest ona równoznaczna z GlobalAlloc<br />
+GlobalAlloc - kolejna funkcja alokująca pamięć ze starty; obecnie jest ona równoznaczna z LocalAlloc<br />
+malloc - funkcja w C do alokacji pamięci ze starty; patrz również free<br />
+CreateFileMapping - jednym z zastosowań tej funkcji jest alokacja dodatkowej pamięci, którą następnie można zamapować w dowolne miejsce (jest to jeden ze sposobów na alokację powyżej 2GB pamięci w procesie; nalezy jednak pamiętać że przestrzeń adresowa procesu pozostaje ograniczona do 2GB, więc mimo iż zaalokujemy więcej pamięci, to i tak dostęp "na raz" będziemy mieli tylko do około 2GB - ale to nie powinien być żaden problem, ponieważ pamięć można przemapowywać, tak aby raz mieć dostęp do jednej części stron, a potem do innej - patrz również Inne linki) <br />
+MapViewOfFile - funkcja do mapowania w przestrzeń adresową procesu pamięci zaalokowanej przez CreateFileMapping (warto rzucić okiem również na spis innych funkcji z tej rodziny, choćby takich jak UnmapViewOfFile) <br />
+AllocateUserPhysicalPages - funkcja z rozszerzenia AWE (Address Windowing Extension) do alokowania fizycznych stron pamięci (uwaga: proces musi mieć dostęp do tokenu <br />SeLockMemoryPrivilege - w tym celu trzeba ustawić userowi dostęp do 'Lock Pages In Memory' w lokalnych politykach); jest to drugi zestaw funkcji pozwalający zaalokować więcej niż 2GB pamięci, a na systemach serwerowych nawet więcej niż 4GB pamięci<br />
+MapUserPhysicalPages - funkcja AWE do pamowania fizycznych stron pamięci w przestrzeń procesu
+	</p>
+	<hr>
+
+	<h2>Narzędzia do reverse engineeringu</h2>
+	<p>
+		<a href="https://www.softpedia.com/get/Programming/Packers-Crypters-Protectors/PEiD-updated.shtml">PEiD</a> - detektor packerów/protektorów i kompilatorów<br>
+		<a href="https://gynvael.coldwind.pl/?id=181">Ent</a> - aplikacja do pomiaru entropii pliku<br/>
+		<a href="https://www.mingw-w64.org/">strings</a> - (standardowo instalowana wraz z sterownikiem kompilatora MinGW) wyszukiwanie tekstu w pliku binarnym<br/>
+		<a href="http://wjradburn.com/software/">PEview</a> - program prezentujący strukturę plików PE w wygodny sposób<br/>
+		<a href="https://www.wireshark.org/download.html">Wireshark</a> - pierwszoligowy sniffer sieciowy<br/>
+		<a href="https://learn.microsoft.com/en-us/sysinternals/downloads/process-explorer">Process Explorer</a> - programik pokazujący masę przydatnych informacji o procesach<br/>
+		<a href="https://learn.microsoft.com/en-us/sysinternals/downloads/procmon">Process Monitor</a> - monitor odwołań do systemu plików, rejestru oraz innych operacji<br/>
+		<a href="http://totalcmd.pl/pobierz">Total Commander</a> - świetny i bardzo wygodny menadżer plików pod systemy z rodziny Windows<br />
+		<a href="https://ghidra-sre.org/">Ghidra</a> - darmowy disassembler stworzony przez NSA obługuje pliki binarne pod windows (PE,DLL) oraz linux(ELF,SO,O)<br />
+		<a href="https://x64dbg.com/">x64dbg</a> - debugger open-source jest również wersja x32dbg ktora przeznaczona jest dla plikow 32-bitowych. Posiada wbudowane narzędzie do zrzucania oraz odbudowy tablicy importow. <br />
+		<a href="https://hshrzd.wordpress.com/pe-bear/">PE-bear</a> - narzędzie do modyfikowania struktury plików PE
+	</p>
+	<hr>
+
+	<h2>Packery</h2>
+	<p>Packery / protektory to narzędzia których zadaniem jest zaciemnienie pliku wykonywalnego do postaci nie zrozumiałej dla procesora oraz dla człowieka. Packery są używane często do zaciemnienia pliku wykonywalnego w taki sposób aby wykrywalny malware stał się nie wykrywalny przynajmniej do momentu wypakowania go w pamięci. Packer modyfikuje plik zapisany na dysku tzn modyfikuje jego sekcje oraz nagłówki.</p>
+
+	<p><br>Algorytm działania packera:</br></p>
+	<p>1. Wczytanie pliku PE</p>
+	<p>2. Stworzenie nowej sekcji SimpCryp, i jej skonfigurowanie</p>
+	<p>3. Wczytanie skompilowanej wersji loadera; ustawienie loadera jako dane nowej sekcji</p>
+	<p>4. Zmiana OptionalHeader.SizeOfImage, OptionalHeader.AddressOfEntryPoint oraz praw dostępu do pierwszej sekcji</p>
+	<p>5. Ustawienie pierwszych trzech DWORDów w loaderze na OEP, VA początku pierwszej sekcji i wielkość pierwszej sekcji</p>
+	<p>6. Zaszyfrowanie pierwszej sekcji (XOR i ADD)</p>
+	<p>7. Zapis PE do pliku</p>
+
+	<p>Packery jak już wcześniej wspomniałem modyfikują plik w taki sposób że procesor nie jest w stanie wykonać zmodyfikowanego kodu maszynowego - tzn my nie jesteśmy wstanie odczytać a procesor nie jest w stanie wykonać. Dlatego każdy spakowany plik posiada dodatkową sekcja która zawiera funkcje deszyfrującą tzn stub - stub jest nowym <b>Entry Pointem</b> procesu. Funkcja stub w pamięci rozpakuje zaszyfrowany kod aplikacji oraz wynik zapisze do nowej sekcji która znajduje się najniżej w pamięci (przeważnie sekcje te istnieją już na etapie spakowania aplikacji i jesteśmy w stanie je zobaczyć czytając plik z dysku. Sekcje te mają duże wartości entropi ponieważ wartość <br>Virtual Size</b> takiej sekcji jest duży a <b>Raw size</b> wynosi 0 ponieważ nic nie jest zapisane do sekcji przed załadowaniem pliku do pamięci i wykonania procesu rozpakowania). Początek sekcji do której pisany jest rozszyfrowany kod programu jest nazywany punktem <b>OEP</b> - orginal entry point który wskazuje na faktyczny kod aplikacji - po procesie deszyfrowania następuje skok do OEP - jeżeli wykonamy zrzut pamięci od OEP do końca przestrzeni adresowej proceso i zapiszemy go do pliku na dysku otrzymamy orginalny plik wykonywalny który będzie bardzo przypominał ten przed procesem pakowania packerem.</p>
+
+	<hr>
+
+	<h2>OEP i zrzuty pamięci</h2>
+	<p><b>Loader Packera</b> - loader jest elementem który jest dla procesu Entry Pointem czyli pierwszym kodem maszynowym jaki procesor wykonuje a elementem wyjściowym jest rozszyfrowany kod aplikacji.</p>
+	<p><b>Kod Aplikacji</b> - Kod aplikacji jest faktycznym kodem który był zapisany na dysku w postaci zaszyfrowanej przez algorytm którego działanie zna tylko Loader. Kod aplikacji jest elementem wyjściowym dla Loadera i zapisywany do pustej sekcji która zaczyna się od OEP (orginal entry point)</p>
+	<p>Zrzut pamięci jest procesem w którym chcemy zapisać to co dzieje się w pamięci do postaci pliku na dysk. Często zrzuty wykonuje się podczas analizy malware gdy aplikacja jest już pod procesie deszyfrowania chcemy odczytać z niej stringi które mogą powiedzieć nam z jakimi adresami ip lub adresami domen komunikuje się aplikacja. Co zrzucać ? - zrzucanie pamięci nie musi tyczyć się jednego procesu lub pliku zrzucać możemy całą zawartość która aktualnie siedzi w pamięci jednak ten proces może trwać nawet do kilkudziesięciu minut oraz proces odczytywania zawartości takiego zrzutu również nie będzie krótkim procesem. Możemy zrzucać także pojedyncze moduły plików wykonywalnych oraz fragmenty pamięci podając zakres adresów których zawartość chcemy "zrzucić".</p>
+	<p>Narzędzia do zrzucania pamięci:</p>
+	<p>
+		dd - narzędzie występujące standardowo na systemach unixowych jest w stanie zrzucać nie tylko zawartość pamięci ale także zakresy bajtów z dysków lub plików zapisanych na dysku. Potrzebuje w parametrze pliku wejściowego (na linuxach wszysto ma swoją reprezentacje plikową) oraz pliku wyjściowego oprócz tego są jeszcze parametry określające ilość bajtów do zrzucenia lub początek od którego ma zacząć czytać bajty. <br /><br />
+		debugger - praktycznie każdy debugger ma opcje zrzucania zawartości pamięci procesu na dysk - dla przykładu x64dbg posiada wbudowany podprogram "Scylla" którym można zrzucać wybrane zakresy adresów z pamięci. <br /><br />
+		Process Explorer - narzędzie przypominające task managera jednak jest bardziej rozwinięte daje możliwość wykonania zrzutu wybranego procesu lub całej pamięci.
+	</p>
+</body>
+</html>
